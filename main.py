@@ -6,15 +6,6 @@ from functools import partial
 class State(object):
     pass
 
-
-def start(canvas):
-    rec = canvas.create_rectangle(10, 10, 20, 20, fill="red")
-    for _ in xrange(100):
-        sleep(0.01)
-        canvas.move(rec, 0, 1)
-        canvas.update_idletasks()
-
-
 SQUARE_SIZE = 80
 WIDTH_CELLS = 10
 HIGHT_CELLS = 10
@@ -30,9 +21,24 @@ FULL_CELLS = [(i, 9) for i in range(0, 2) + range(7, 10)] + \
              [(i, 0) for i in range(0, 10) if i != 4]
 
 ARROW_CELLS = [(6, 8, "180"),
-               (4, 6, "up_down")]
+               (4, 5, "180"),
+               (7, 5, "up_down"),
+               (1, 5, "up_down"),
+               ]
 PIECES = [(4, 7, ["red", "red", "green", "green"]),
-          (4, 6, ["green", "green", "red", "red"])]
+          (4, 6, ["green", "green", "red", "red"]),
+          (6, 5, ["green", "green", "red", "red"]),
+          (5, 5, ["red", "red", "green", "green"]),
+          (3, 5, ["green", "red", "green", "red"]),
+          (2, 5, ["red", "green", "red", "green"]),
+          (4, 2, ["green", "green", "red", "red"]),
+          (4, 1, ["red", "red", "green", "green"]),
+          ]
+PAIRS = {(4, 7): (4, 6),
+         (5, 5): (6, 5),
+         (3, 5): (2, 5),
+         (4, 2): (4, 1),
+         }
 
 
 def bind_keys(canvas, state):
@@ -74,6 +80,7 @@ def create_arrow(canvas, x, y, arrow_type):
                         anchor="nw", image=image)
     return arrow
 
+
 def piece_data_after_operation(original_data, operation):
     if operation == "180":
         return [original_data[3], original_data[2],
@@ -89,6 +96,7 @@ def operate_piece(canvas, x, y, piece_data, piece_tag, operation):
     new_tag = create_piece(canvas, x, y, new_data)
     return new_tag, new_data
 
+
 def create_piece(canvas, x, y, piece_data):
     delta = 5
     start_x = x * SQUARE_SIZE + delta
@@ -98,7 +106,7 @@ def create_piece(canvas, x, y, piece_data):
                             start_x + slice_size, start_y + slice_size,
                             width=0,
                             fill=piece_data[0])
-    tag = str(piece_id)
+    tag = "P" + str(piece_id)
     canvas.itemconfig(piece_id, tags=tag)
     canvas.create_rectangle(start_x + slice_size, start_y,
                             start_x + slice_size * 2, start_y + slice_size,
@@ -113,7 +121,7 @@ def create_piece(canvas, x, y, piece_data):
     canvas.create_rectangle(start_x + slice_size, start_y + slice_size,
                             start_x + slice_size * 2, start_y + slice_size * 2,
                             width=0,
-                            fill=piece_data[2],
+                            fill=piece_data[3],
                             tags=tag)
     return tag
 
@@ -144,10 +152,6 @@ def draw_board(canvas):
         tag = create_piece(canvas, x, y, piece_data)
         state.pieces[(x, y)] = (tag, piece_data)
 
-    canvas.create_line(4.5 * SQUARE_SIZE, 7.5 * SQUARE_SIZE,
-                       4.5 * SQUARE_SIZE, 6.5 * SQUARE_SIZE,
-                       fill="blue",
-                       width=3)
     bind_keys(canvas, state)
 
 
@@ -184,6 +188,17 @@ def move_player(event, canvas, state, dx, dy):
                                               piece_data, old_tag,
                                               state.current_arrow)
             state.pieces[(next_x, next_y)] = (new_tag, new_data)
+            state.current_arrow = None
+            other_x, other_y = PAIRS[(next_x, next_y)]
+            other_tag, other_data = state.pieces[(other_x, other_y)]
+            if other_data == new_data:
+                print "Match"
+                canvas.update_idletasks()
+                sleep(0.5)
+                canvas.delete(other_tag)
+                canvas.delete(new_tag)
+                state.pieces.pop((next_x, next_y))
+                state.pieces.pop((other_x, other_y))
             return
 
     canvas.move(state.player, dx * SQUARE_SIZE, dy * SQUARE_SIZE)
@@ -201,6 +216,7 @@ def move_player(event, canvas, state, dx, dy):
 
 def main():
     root = Tk()
+
     canvas = Canvas(root,
                     bg="white",
                     width=WIDTH_CELLS * SQUARE_SIZE,
@@ -210,9 +226,6 @@ def main():
 
     draw_board(canvas)
 
-    start_button = Button(root, text="Start", command=partial(start, canvas))
-    start_button.pack()
-    
     root.mainloop()
 
 
