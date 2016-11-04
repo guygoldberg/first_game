@@ -20,11 +20,14 @@ FULL_CELLS = [(i, 9) for i in range(0, 2) + range(7, 10)] + \
              [(i, 1) for i in range(0, 10) if i != 4] + \
              [(i, 0) for i in range(0, 10) if i != 4]
 
-ARROW_CELLS = [(6, 8, "180"),
-               (4, 5, "180"),
-               (7, 5, "up_down"),
-               (1, 5, "up_down"),
-               ]
+# Operation is a tuple (boolean, int)
+# The boolean indicates if there's a mirroring, and the int
+# is the number of rotations
+OPERATIONS = [(6, 8, (False, 2)),
+              (4, 5, (False, 2)),
+              (7, 5, (True, 0)),
+              (1, 5, (True, 0)),
+              ]
 PIECES = [(4, 7, ["red", "red", "green", "green"]),
           (4, 6, ["green", "green", "red", "red"]),
           (6, 5, ["green", "green", "red", "red"]),
@@ -70,24 +73,26 @@ def create_square_rectangle(canvas, x, y, fill="black", delta=0):
                                    fill=fill)
 
 
-def create_arrow(canvas, x, y, arrow_type):
-    if arrow_type == "180":
-        image = canvas.arrow_180_image
-    else:
-        image = canvas.up_down_image
-
-    arrow = canvas.create_image(x * SQUARE_SIZE, y * SQUARE_SIZE,
-                        anchor="nw", image=image)
-    return arrow
+def draw_operation(canvas, x, y, operation_type):
+    operation_type_to_image = {(False, 2): canvas.arrow_180_image,
+                               (True, 0): canvas.up_down_image,
+                               }
+    image = operation_type_to_image[operation_type]
+    operation = canvas.create_image(x * SQUARE_SIZE, y * SQUARE_SIZE,
+                                    anchor="nw", image=image)
+    return operation
 
 
 def piece_data_after_operation(original_data, operation):
-    if operation == "180":
+    if operation == (False, 2):
         return [original_data[3], original_data[2],
                 original_data[1], original_data[0]]
-    else:
+
+    if operation == (True, 0):
         return [original_data[2], original_data[3],
                 original_data[0], original_data[1]]
+
+    raise ValueError("No operation of type {}".format(operation))
       
 
 def operate_piece(canvas, x, y, piece_data, piece_tag, operation):
@@ -130,9 +135,9 @@ def draw_board(canvas):
     state = State()
     state.player_x = 3
     state.player_y = 9
-    state.arrows = {}
+    state.operations = {}
     state.pieces = {}
-    state.current_arrow = None
+    state.current_operation = None
 
     state.player = create_square_rectangle(canvas, state.player_x, state.player_y, fill="red", delta=5)
 
@@ -144,9 +149,9 @@ def draw_board(canvas):
     canvas.arrow_180_image = arrow_180_image
     canvas.up_down_image = up_down_image
 
-    for x, y, arrow_type in ARROW_CELLS:
-        arrow = create_arrow(canvas, x, y, arrow_type)
-        state.arrows[(x, y)] = (arrow, arrow_type)
+    for x, y, operation_type in OPERATIONS:
+        operation = draw_operation(canvas, x, y, operation_type)
+        state.operations[(x, y)] = (operation, operation_type)
 
     for x,y, piece_data in PIECES:
         tag = create_piece(canvas, x, y, piece_data)
@@ -179,16 +184,16 @@ def move_player(event, canvas, state, dx, dy):
         return
 
     if (next_x, next_y) in state.pieces:
-        if state.current_arrow is None:
+        if state.current_operation is None:
             return
         else:
             old_tag, piece_data = state.pieces[(next_x, next_y)]
             new_tag, new_data = operate_piece(canvas,
                                               next_x, next_y,
                                               piece_data, old_tag,
-                                              state.current_arrow)
+                                              state.current_operation)
             state.pieces[(next_x, next_y)] = (new_tag, new_data)
-            state.current_arrow = None
+            state.current_operation = None
             other_x, other_y = PAIRS[(next_x, next_y)]
             other_tag, other_data = state.pieces[(other_x, other_y)]
             if other_data == new_data:
@@ -207,11 +212,10 @@ def move_player(event, canvas, state, dx, dy):
     state.player_y += dy
     print state.player_x, state.player_y
 
-    if (state.player_x, state.player_y) in state.arrows:
-        arrow, arrow_type = state.arrows.pop((state.player_x, state.player_y))
-        canvas.delete(arrow)
-        print "On arrow"
-        state.current_arrow = arrow_type
+    if (state.player_x, state.player_y) in state.operations:
+        operation, operation_type = state.operations.pop((state.player_x, state.player_y))
+        canvas.delete(operation)
+        state.current_operation = operation_type
 
 
 def main():
