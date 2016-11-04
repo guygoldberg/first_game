@@ -32,8 +32,8 @@ PIECES = [(4, 7, ["red", "red", "green", "green"]),
           (4, 6, ["green", "green", "red", "red"]),
           (6, 5, ["green", "green", "red", "red"]),
           (5, 5, ["red", "red", "green", "green"]),
-          (3, 5, ["green", "red", "green", "red"]),
-          (2, 5, ["red", "green", "red", "green"]),
+          (3, 5, ["green", "red", "red", "green"]),
+          (2, 5, ["red", "green", "green", "red"]),
           (4, 2, ["green", "green", "red", "red"]),
           (4, 1, ["red", "red", "green", "green"]),
           ]
@@ -84,16 +84,20 @@ def draw_operation(canvas, x, y, operation_type):
 
 
 def piece_data_after_operation(original_data, operation):
-    if operation == (False, 2):
-        return [original_data[3], original_data[2],
-                original_data[1], original_data[0]]
+    mirror, number_of_rotations = operation
 
-    if operation == (True, 0):
-        return [original_data[2], original_data[3],
-                original_data[0], original_data[1]]
+    if mirror:
+        new_data = original_data[1:3] + original_data[0:1]
+    else:
+        new_data = original_data[:]
 
-    raise ValueError("No operation of type {}".format(operation))
-      
+    for _ in xrange(number_of_rotations):
+        before_rotation = new_data[:]
+        for i in xrange(4):
+            new_data[i] = before_rotation[(i + 3) % 4]
+
+    return new_data
+
 
 def operate_piece(canvas, x, y, piece_data, piece_tag, operation):
     new_data = piece_data_after_operation(piece_data, operation)
@@ -118,13 +122,13 @@ def create_piece(canvas, x, y, piece_data):
                             width=0,
                             fill=piece_data[1],
                             tags=tag)
-    canvas.create_rectangle(start_x, start_y + slice_size,
-                            start_x + slice_size, start_y + slice_size * 2,
+    canvas.create_rectangle(start_x + slice_size, start_y + slice_size,
+                            start_x + slice_size * 2, start_y + slice_size * 2,
                             width=0,
                             fill=piece_data[2],
                             tags=tag)
-    canvas.create_rectangle(start_x + slice_size, start_y + slice_size,
-                            start_x + slice_size * 2, start_y + slice_size * 2,
+    canvas.create_rectangle(start_x, start_y + slice_size,
+                            start_x + slice_size, start_y + slice_size * 2,
                             width=0,
                             fill=piece_data[3],
                             tags=tag)
