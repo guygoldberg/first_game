@@ -7,41 +7,20 @@ class State(object):
     pass
 
 SQUARE_SIZE = 80
-WIDTH_CELLS = 10
-HIGHT_CELLS = 10
 
-FULL_CELLS = [(i, 9) for i in range(0, 2) + range(7, 10)] + \
-             [(i, 8) for i in range(0, 2) + range(7, 10)] + \
-             [(i, 7) for i in range(0, 10) if i != 4] + \
-             [(i, 6) for i in range(0, 10) if i != 4] + \
-             [(i, 4) for i in range(0, 10) if i != 4] + \
-             [(i, 3) for i in range(0, 10) if i != 4] + \
-             [(i, 2) for i in range(0, 10) if i != 4] + \
-             [(i, 1) for i in range(0, 10) if i != 4] + \
-             [(i, 0) for i in range(0, 10) if i != 4]
+piece_code_to_data = {
+        "A": ["red", "red", "green", "green"],
+        "B": ["green", "red", "red", "green"],
+        "C": ["green", "green", "red", "red"],
+        "D": ["red", "green", "green", "red"]}
 
 # Operation is a tuple (boolean, int)
 # The boolean indicates if there's a mirroring, and the int
 # is the number of rotations
-OPERATIONS = [(6, 8, (False, 2)),
-              (4, 5, (False, 2)),
-              (7, 5, (True, 0)),
-              (1, 5, (True, 0)),
-              ]
-PIECES = [(4, 7, ["red", "red", "green", "green"]),
-          (4, 6, ["green", "green", "red", "red"]),
-          (6, 5, ["green", "green", "red", "red"]),
-          (5, 5, ["red", "red", "green", "green"]),
-          (3, 5, ["green", "red", "red", "green"]),
-          (2, 5, ["red", "green", "green", "red"]),
-          (4, 2, ["green", "green", "red", "red"]),
-          (4, 1, ["red", "red", "green", "green"]),
-          ]
-PAIRS = {(4, 7): (4, 6),
-         (5, 5): (6, 5),
-         (3, 5): (2, 5),
-         (4, 2): (4, 1),
-         }
+operation_code_to_operation_type = {
+        "a": (False, 2),
+        "b": (True, 0),
+        }
 
 
 def bind_keys(canvas, state):
@@ -87,7 +66,8 @@ def piece_data_after_operation(original_data, operation):
     mirror, number_of_rotations = operation
 
     if mirror:
-        new_data = original_data[1:3] + original_data[0:1]
+        new_data = [original_data[3], original_data[2],
+                    original_data[1], original_data[0]]
     else:
         new_data = original_data[:]
 
@@ -135,43 +115,64 @@ def create_piece(canvas, x, y, piece_data):
     return tag
 
 
-def draw_board(canvas):
+def draw_board(canvas, level, pairs_as_text):
     state = State()
-    state.player_x = 3
-    state.player_y = 9
     state.operations = {}
     state.pieces = {}
+    state.blocks = []
+    state.width = len(level[0])
+    state.height = len(level)
     state.current_operation = None
-
-    state.player = create_square_rectangle(canvas, state.player_x, state.player_y, fill="red", delta=5)
-
-    for x, y in FULL_CELLS:
-        create_square_rectangle(canvas, x, y, fill="black")
+    state.pairs = {}
 
     arrow_180_image = PhotoImage(file="arrow.gif")
     up_down_image = PhotoImage(file="up_down_flip.gif")
     canvas.arrow_180_image = arrow_180_image
     canvas.up_down_image = up_down_image
 
-    for x, y, operation_type in OPERATIONS:
-        operation = draw_operation(canvas, x, y, operation_type)
-        state.operations[(x, y)] = (operation, operation_type)
 
-    for x,y, piece_data in PIECES:
-        tag = create_piece(canvas, x, y, piece_data)
-        state.pieces[(x, y)] = (tag, piece_data)
+    for line in pairs_as_text:
+        # TODO: Change from eval to a better way
+        (x1, y1), (x2, y2) = eval(line)
+        state.pairs[(x1, y1)] = (x2, y2)
 
+    y = 0
+    for line in level:
+        x = 0
+        for char in line:
+            if char == "#":
+                create_square_rectangle(canvas, x, y, fill="black")
+                state.blocks.append((x, y))
+
+            if char in ["A", "B", "C", "D"]:
+                piece_data = piece_code_to_data[char]
+                tag = create_piece(canvas, x, y, piece_data)
+                state.pieces[(x, y)] = (tag, piece_data)
+
+            if char in ["a", "b"]:
+                operation_type = operation_code_to_operation_type[char]
+                operation = draw_operation(canvas, x, y, operation_type)
+                state.operations[(x, y)] = (operation, operation_type)
+
+            if char == "p":
+                state.player_x = x
+                state.player_y = y
+
+            x += 1
+        y += 1
+
+    state.player = create_square_rectangle(canvas, state.player_x, state.player_y, fill="red", delta=5)
     bind_keys(canvas, state)
 
 
-def is_blocked(x, y):
-    return (x, y) in FULL_CELLS
+def is_blocked(state, x, y):
+    return (x, y) in state.blocks
 
 
-def is_in_board(x, y):
-    if (x >= WIDTH_CELLS or 
+def is_in_board(state, x, y):
+    if (x >= state.width or
         x < 0 or 
-        y >= HIGHT_CELLS or
+        y >= state.height or
         y < 0):
         return False
     return True
@@ -181,10 +182,10 @@ def move_player(event, canvas, state, dx, dy):
     next_x = state.player_x + dx
     next_y = state.player_y + dy
 
-    if not is_in_board(next_x, next_y):
+    if not is_in_board(state, next_x, next_y):
         return
 
-    if is_blocked(next_x, next_y):
+    if is_blocked(state, next_x, next_y):
         return
 
     if (next_x, next_y) in state.pieces:
@@ -198,10 +199,9 @@ def move_player(event, canvas, state, dx, dy):
                                               state.current_operation)
             state.pieces[(next_x, next_y)] = (new_tag, new_data)
             state.current_operation = None
-            other_x, other_y = PAIRS[(next_x, next_y)]
+            other_x, other_y = state.pairs[(next_x, next_y)]
             other_tag, other_data = state.pieces[(other_x, other_y)]
             if other_data == new_data:
-                print "Match"
                 canvas.update_idletasks()
                 sleep(0.5)
                 canvas.delete(other_tag)
@@ -214,7 +214,6 @@ def move_player(event, canvas, state, dx, dy):
 
     state.player_x += dx
     state.player_y += dy
-    print state.player_x, state.player_y
 
     if (state.player_x, state.player_y) in state.operations:
         operation, operation_type = state.operations.pop((state.player_x, state.player_y))
@@ -225,14 +224,18 @@ def move_player(event, canvas, state, dx, dy):
 def main():
     root = Tk()
 
+    full_level = open("level_1.lvl", "rb").read().splitlines()
+    split_index = full_level.index("-")
+    level = full_level[:split_index]
+    pairs_as_text = full_level[split_index+1:]
     canvas = Canvas(root,
                     bg="white",
-                    width=WIDTH_CELLS * SQUARE_SIZE,
-                    height=HIGHT_CELLS * SQUARE_SIZE)
+                    width=len(level[0]) * SQUARE_SIZE,
+                    height=len(level) * SQUARE_SIZE)
     canvas.pack()
     canvas.focus_set()
 
-    draw_board(canvas)
+    draw_board(canvas, level, pairs_as_text)
 
     root.mainloop()
 
