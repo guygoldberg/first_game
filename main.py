@@ -12,7 +12,13 @@ piece_code_to_data = {
         "A": ["red", "red", "green", "green"],
         "B": ["green", "red", "red", "green"],
         "C": ["green", "green", "red", "red"],
-        "D": ["red", "green", "green", "red"]}
+        "D": ["red", "green", "green", "red"],
+
+        "E": ["red", "green", "green", "green"],
+        "F": ["green", "red", "green", "green"],
+        "G": ["green", "green", "red", "green"],
+        "H": ["green", "green", "green", "red"],
+        }
 
 # Operation is a tuple (boolean, int)
 # The boolean indicates if there's a mirroring, and the int
@@ -20,6 +26,8 @@ piece_code_to_data = {
 operation_code_to_operation_type = {
         "a": (False, 2),
         "b": (True, 0),
+        "c": (False, 1),
+        "d": (True, 2),
         }
 
 
@@ -55,6 +63,8 @@ def create_square_rectangle(canvas, x, y, fill="black", delta=0):
 def draw_operation(canvas, x, y, operation_type):
     operation_type_to_image = {(False, 2): canvas.arrow_180_image,
                                (True, 0): canvas.up_down_image,
+                               (False, 1): canvas.rotate_image,
+                               (True, 2): canvas.right_left_image,
                                }
     image = operation_type_to_image[operation_type]
     operation = canvas.create_image(x * SQUARE_SIZE, y * SQUARE_SIZE,
@@ -127,14 +137,24 @@ def draw_board(canvas, level, pairs_as_text):
 
     arrow_180_image = PhotoImage(file="arrow.gif")
     up_down_image = PhotoImage(file="up_down_flip.gif")
+    rotate_image = PhotoImage(file="Rotate-Arrow.gif")
+    right_left_image = PhotoImage(file="right_left.gif")
     canvas.arrow_180_image = arrow_180_image
     canvas.up_down_image = up_down_image
+    canvas.rotate_image = rotate_image
+    canvas.right_left_image = right_left_image
 
 
     for line in pairs_as_text:
         # TODO: Change from eval to a better way
         (x1, y1), (x2, y2) = eval(line)
-        state.pairs[(x1, y1)] = (x2, y2)
+        if (x1, y1) not in state.pairs:
+            state.pairs[(x1, y1)] = []
+        state.pairs[(x1, y1)].append((x2, y2))
+
+        if (x2, y2) not in state.pairs:
+            state.pairs[(x2, y2)] = []
+        state.pairs[(x2, y2)].append((x1, y1))
 
     y = 0
     for line in level:
@@ -144,12 +164,12 @@ def draw_board(canvas, level, pairs_as_text):
                 create_square_rectangle(canvas, x, y, fill="black")
                 state.blocks.append((x, y))
 
-            if char in ["A", "B", "C", "D"]:
+            if char in piece_code_to_data:
                 piece_data = piece_code_to_data[char]
                 tag = create_piece(canvas, x, y, piece_data)
                 state.pieces[(x, y)] = (tag, piece_data)
 
-            if char in ["a", "b"]:
+            if char in operation_code_to_operation_type:
                 operation_type = operation_code_to_operation_type[char]
                 operation = draw_operation(canvas, x, y, operation_type)
                 state.operations[(x, y)] = (operation, operation_type)
@@ -199,15 +219,24 @@ def move_player(event, canvas, state, dx, dy):
                                               state.current_operation)
             state.pieces[(next_x, next_y)] = (new_tag, new_data)
             state.current_operation = None
-            other_x, other_y = state.pairs[(next_x, next_y)]
-            other_tag, other_data = state.pieces[(other_x, other_y)]
-            if other_data == new_data:
-                canvas.update_idletasks()
-                sleep(0.5)
-                canvas.delete(other_tag)
-                canvas.delete(new_tag)
-                state.pieces.pop((next_x, next_y))
-                state.pieces.pop((other_x, other_y))
+            if (next_x, next_y) in state.pairs:
+                delete_self = False
+                for (other_x, other_y) in state.pairs[(next_x, next_y)]:
+                    other_tag, other_data = state.pieces[(other_x, other_y)]
+                    if other_data == new_data:
+                        delete_self = True
+                        canvas.update_idletasks()
+                        sleep(0.3)
+                        canvas.delete(other_tag)
+                        state.pieces.pop((other_x, other_y))
+                        state.pairs.pop((other_x, other_y))
+
+                if delete_self:
+                    canvas.update_idletasks()
+                    sleep(0.3)
+                    state.pieces.pop((next_x, next_y))
+                    state.pairs.pop((next_x, next_y))
+                    canvas.delete(new_tag)
             return
 
     canvas.move(state.player, dx * SQUARE_SIZE, dy * SQUARE_SIZE)
