@@ -54,6 +54,10 @@ def bind_restart(canvas, level, pairs_as_text):
                              canvas=canvas))
 
 
+def enter_debug(event, canvas, state):
+    import pdb; pdb.set_trace()
+
+
 def bind_arrows(canvas, state):
     canvas.bind("<Up>", partial(move_player,
                                 canvas=canvas,
@@ -75,6 +79,9 @@ def bind_arrows(canvas, state):
                                 state=state,
                                 dx=-1,
                                 dy=0))
+    canvas.bind("d", partial(enter_debug,
+                             canvas=canvas,
+                             state=state))
 
 
 
@@ -109,16 +116,28 @@ def start_game(canvas, level, pairs_as_text):
     bind_arrows(canvas, state)
 
 
-def draw_board(canvas, level, pairs_as_text):
-    state = State()
-    state.operations = {}
-    state.pieces = {}
-    state.blocks = []
-    state.width = len(level[0])
-    state.height = len(level)
-    state.current_operation = None
-    state.pairs = {}
+def delete_element(canvas, state, x, y):
+    if (x, y) in state.blocks:
+        block = state.blocks.pop((x, y))
+        canvas.delete(block)
 
+    if (x, y) in state.pieces:
+        tag = state.pieces.pop((x, y))[0]
+        canvas.delete(tag)
+
+        if (x, y) in state.pairs:
+            state.pairs[(x, y)].pop()
+
+        for source, target in state.pairs.iteritems():
+            if (x, y) in target:
+                target.remove((x, y))
+
+    if (x, y) in state.operations:
+        tag = state.operations.pop((x, y))[0]
+        canvas.delete(tag)
+
+
+def init_pairs(state, pairs_as_text):
     for line in pairs_as_text:
         # TODO: Change from eval to a better way
         (x1, y1), (x2, y2) = eval(line)
@@ -130,13 +149,26 @@ def draw_board(canvas, level, pairs_as_text):
             state.pairs[(x2, y2)] = []
         state.pairs[(x2, y2)].append((x1, y1))
 
+
+def draw_board(canvas, level, pairs_as_text):
+    state = State()
+    state.operations = {}
+    state.pieces = {}
+    state.blocks = {}
+    state.width = len(level[0])
+    state.height = len(level)
+    state.current_operation = None
+    state.pairs = {}
+
+    init_pairs(state, pairs_as_text)
+
     y = 0
     for line in level:
         x = 0
         for char in line:
             if char == "#":
-                create_square_rectangle(canvas, x, y, fill="black")
-                state.blocks.append((x, y))
+                block = create_square_rectangle(canvas, x, y, fill="black")
+                state.blocks[(x, y)] = block
 
             if char in piece_code_to_data:
                 piece_data = piece_code_to_data[char]
