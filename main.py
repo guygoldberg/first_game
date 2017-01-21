@@ -1,13 +1,22 @@
 import sys
-from Tkinter import *
 from time import sleep
 from random import randint
 from functools import partial
+from Tkinter import *
+
+from drawings import (
+    init_canvas,
+    create_square_rectangle,
+    load_assets_to_canvas,
+    create_piece,
+    draw_operation,
+    move_element_on_canvas,
+    )
+
 
 class State(object):
     pass
 
-SQUARE_SIZE = 80
 
 piece_code_to_data = {
         "A": ["red", "red", "green", "green"],
@@ -32,7 +41,20 @@ operation_code_to_operation_type = {
         }
 
 
-def bind_keys(canvas, state):
+def restart_level(event, canvas, level, pairs_as_text):
+    canvas.delete(ALL)
+    state = draw_board(canvas, level, pairs_as_text)
+    bind_arrows(canvas, state)
+
+
+def bind_restart(canvas, level, pairs_as_text):
+    canvas.bind("r", partial(restart_level,
+                             level=level,
+                             pairs_as_text=pairs_as_text,
+                             canvas=canvas))
+
+
+def bind_arrows(canvas, state):
     canvas.bind("<Up>", partial(move_player,
                                 canvas=canvas,
                                 state=state,
@@ -54,23 +76,6 @@ def bind_keys(canvas, state):
                                 dx=-1,
                                 dy=0))
 
-
-def create_square_rectangle(canvas, x, y, fill="black", delta=0):
-    return canvas.create_rectangle(x * SQUARE_SIZE + delta, y * SQUARE_SIZE + delta,
-                                   (x + 1) * SQUARE_SIZE - delta, (y + 1) * SQUARE_SIZE - delta,
-                                   fill=fill)
-
-
-def draw_operation(canvas, x, y, operation_type):
-    operation_type_to_image = {(False, 2): canvas.arrow_180_image,
-                               (True, 0): canvas.up_down_image,
-                               (False, 1): canvas.rotate_image,
-                               (True, 2): canvas.right_left_image,
-                               }
-    image = operation_type_to_image[operation_type]
-    operation = canvas.create_image(x * SQUARE_SIZE, y * SQUARE_SIZE,
-                                    anchor="nw", image=image)
-    return operation
 
 
 def piece_data_after_operation(original_data, operation):
@@ -97,33 +102,11 @@ def operate_piece(canvas, x, y, piece_data, piece_tag, operation):
     return new_tag, new_data
 
 
-def create_piece(canvas, x, y, piece_data):
-    delta = 5
-    start_x = x * SQUARE_SIZE + delta
-    start_y = y * SQUARE_SIZE + delta
-    slice_size = (SQUARE_SIZE - 2 * delta) / 2
-    piece_id = canvas.create_rectangle(start_x, start_y, 
-                            start_x + slice_size, start_y + slice_size,
-                            width=0,
-                            fill=piece_data[0])
-    tag = "P" + str(piece_id)
-    canvas.itemconfig(piece_id, tags=tag)
-    canvas.create_rectangle(start_x + slice_size, start_y,
-                            start_x + slice_size * 2, start_y + slice_size,
-                            width=0,
-                            fill=piece_data[1],
-                            tags=tag)
-    canvas.create_rectangle(start_x + slice_size, start_y + slice_size,
-                            start_x + slice_size * 2, start_y + slice_size * 2,
-                            width=0,
-                            fill=piece_data[2],
-                            tags=tag)
-    canvas.create_rectangle(start_x, start_y + slice_size,
-                            start_x + slice_size, start_y + slice_size * 2,
-                            width=0,
-                            fill=piece_data[3],
-                            tags=tag)
-    return tag
+def start_game(canvas, level, pairs_as_text):
+    load_assets_to_canvas(canvas)
+    state = draw_board(canvas, level, pairs_as_text)
+    bind_restart(canvas, level, pairs_as_text)
+    bind_arrows(canvas, state)
 
 
 def draw_board(canvas, level, pairs_as_text):
@@ -135,16 +118,6 @@ def draw_board(canvas, level, pairs_as_text):
     state.height = len(level)
     state.current_operation = None
     state.pairs = {}
-
-    arrow_180_image = PhotoImage(file="arrow.gif")
-    up_down_image = PhotoImage(file="up_down_flip.gif")
-    rotate_image = PhotoImage(file="Rotate-Arrow.gif")
-    right_left_image = PhotoImage(file="right_left.gif")
-    canvas.arrow_180_image = arrow_180_image
-    canvas.up_down_image = up_down_image
-    canvas.rotate_image = rotate_image
-    canvas.right_left_image = right_left_image
-
 
     for line in pairs_as_text:
         # TODO: Change from eval to a better way
@@ -183,7 +156,7 @@ def draw_board(canvas, level, pairs_as_text):
         y += 1
 
     state.player = create_square_rectangle(canvas, state.player_x, state.player_y, fill="red", delta=5)
-    bind_keys(canvas, state)
+    return state
 
 
 def is_blocked(state, x, y):
@@ -240,7 +213,7 @@ def move_player(event, canvas, state, dx, dy):
                     canvas.delete(new_tag)
             return
 
-    canvas.move(state.player, dx * SQUARE_SIZE, dy * SQUARE_SIZE)
+    move_element_on_canvas(canvas, state.player, dx, dy)
 
     state.player_x += dx
     state.player_y += dy
@@ -251,6 +224,14 @@ def move_player(event, canvas, state, dx, dy):
         state.current_operation = operation_type
 
 
+def parse_level_from_path(path):
+    full_level = open(path, "rb").read().splitlines()
+    split_index = full_level.index("-")
+    level = full_level[:split_index]
+    pairs_as_text = full_level[split_index+1:]
+    return level, pairs_as_text
+
+
 def main(argv):
     if argv:
         level_str = argv[0]
@@ -258,18 +239,11 @@ def main(argv):
         level_str = "1"
     root = Tk()
 
-    full_level = open("level_{}.lvl".format(level_str), "rb").read().splitlines()
-    split_index = full_level.index("-")
-    level = full_level[:split_index]
-    pairs_as_text = full_level[split_index+1:]
-    canvas = Canvas(root,
-                    bg="white",
-                    width=len(level[0]) * SQUARE_SIZE,
-                    height=len(level) * SQUARE_SIZE)
-    canvas.pack()
-    canvas.focus_set()
+    level, pairs_as_text = parse_level_from_path("level_{}.lvl".format(level_str))
 
-    draw_board(canvas, level, pairs_as_text)
+    canvas = init_canvas(root, level)
+
+    start_game(canvas, level, pairs_as_text)
 
     root.mainloop()
 
