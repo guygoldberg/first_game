@@ -1,3 +1,4 @@
+import sys
 from Tkinter import *
 from time import sleep
 from random import randint
@@ -250,10 +251,14 @@ def move_player(event, canvas, state, dx, dy):
         state.current_operation = operation_type
 
 
-def main():
+def main(argv):
+    if argv:
+        level_str = argv[0]
+    else:
+        level_str = "1"
     root = Tk()
 
-    full_level = open("level_1.lvl", "rb").read().splitlines()
+    full_level = open("level_{}.lvl".format(level_str), "rb").read().splitlines()
     split_index = full_level.index("-")
     level = full_level[:split_index]
     pairs_as_text = full_level[split_index+1:]
@@ -270,4 +275,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
