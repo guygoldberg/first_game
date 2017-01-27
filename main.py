@@ -7,10 +7,13 @@ from Tkinter import *
 from drawings import (
     init_canvas,
     create_square_rectangle,
+    create_edit_canvas,
     load_assets_to_canvas,
     create_piece,
     draw_operation,
     move_element_on_canvas,
+    SQUARE_SIZE,
+    code_to_operation,
     )
 
 
@@ -18,16 +21,17 @@ class State(object):
     pass
 
 
+current_colors = "B"
 piece_code_to_data = {
-        "A": ["red", "red", "green", "green"],
-        "B": ["green", "red", "red", "green"],
-        "C": ["green", "green", "red", "red"],
-        "D": ["red", "green", "green", "red"],
+        "A": list("rrgg"),
+        "B": list("grrg"),
+        "C": list("ggrr"),
+        "D": list("rggr"),
 
-        "E": ["red", "green", "green", "green"],
-        "F": ["green", "red", "green", "green"],
-        "G": ["green", "green", "red", "green"],
-        "H": ["green", "green", "green", "red"],
+        "E": list("rggg"),
+        "F": list("grgg"),
+        "G": list("ggrg"), 
+        "H": list("gggr"), 
         }
 
 # Operation is a tuple (boolean, int)
@@ -82,7 +86,29 @@ def bind_arrows(canvas, state):
     canvas.bind("d", partial(enter_debug,
                              canvas=canvas,
                              state=state))
+    canvas.bind("<Button-3>", partial(right_click,
+                                      canvas=canvas,
+                                      state=state))
+    canvas.bind("<Button-1>", partial(left_click,
+                                      canvas=canvas,
+                                      state=state))
 
+
+
+def right_click(event, canvas, state):
+    delete_element(canvas, state, 
+                   event.x // SQUARE_SIZE, event.y // SQUARE_SIZE)
+
+
+def left_click(event, canvas, state):
+    x, y = event.x // SQUARE_SIZE, event.y // SQUARE_SIZE
+
+    if current_colors == "B":
+        add_block(canvas, state, x, y)
+    elif current_colors[0] in "TF":
+        add_operation(canvas, state, x, y, code_to_operation(current_colors))
+    else:
+        add_piece(canvas, state, x, y, current_colors)
 
 
 def piece_data_after_operation(original_data, operation):
@@ -114,6 +140,11 @@ def start_game(canvas, level, pairs_as_text):
     state = draw_board(canvas, level, pairs_as_text)
     bind_restart(canvas, level, pairs_as_text)
     bind_arrows(canvas, state)
+
+
+def add_block(canvas, state, x, y):
+    block = create_square_rectangle(canvas, x, y, fill="black")
+    state.blocks[(x, y)] = block
 
 
 def delete_element(canvas, state, x, y):
@@ -150,6 +181,16 @@ def init_pairs(state, pairs_as_text):
         state.pairs[(x2, y2)].append((x1, y1))
 
 
+def add_piece(canvas, state, x, y, colors):
+    tag = create_piece(canvas, x, y, colors)
+    state.pieces[(x, y)] = (tag, colors)
+
+
+def add_operation(canvas, state, x, y, operation_type):
+    operation = draw_operation(canvas, x, y, operation_type)
+    state.operations[(x, y)] = (operation, operation_type)
+
+
 def draw_board(canvas, level, pairs_as_text):
     state = State()
     state.operations = {}
@@ -167,18 +208,15 @@ def draw_board(canvas, level, pairs_as_text):
         x = 0
         for char in line:
             if char == "#":
-                block = create_square_rectangle(canvas, x, y, fill="black")
-                state.blocks[(x, y)] = block
+                add_block(canvas, state, x, y)
 
             if char in piece_code_to_data:
                 piece_data = piece_code_to_data[char]
-                tag = create_piece(canvas, x, y, piece_data)
-                state.pieces[(x, y)] = (tag, piece_data)
+                add_piece(canvas, state, x, y, piece_data)
 
             if char in operation_code_to_operation_type:
                 operation_type = operation_code_to_operation_type[char]
-                operation = draw_operation(canvas, x, y, operation_type)
-                state.operations[(x, y)] = (operation, operation_type)
+                add_operation(canvas, state, x, y, operation_type)
 
             if char == "p":
                 state.player_x = x
@@ -264,6 +302,12 @@ def parse_level_from_path(path):
     return level, pairs_as_text
 
 
+def click_edit(event, location_to_colors):
+    colors = location_to_colors[(event.x // SQUARE_SIZE, event.y // SQUARE_SIZE)]
+    global current_colors
+    current_colors = colors
+
+
 def main(argv):
     if argv:
         level_str = argv[0]
@@ -274,7 +318,9 @@ def main(argv):
     level, pairs_as_text = parse_level_from_path("level_{}.lvl".format(level_str))
 
     canvas = init_canvas(root, level)
-
+    edit_canvas, location_to_colors = create_edit_canvas(root, level)
+    edit_canvas.bind("<Button-1>", partial(click_edit,
+                                           location_to_colors=location_to_colors))
     start_game(canvas, level, pairs_as_text)
 
     root.mainloop()
