@@ -299,7 +299,7 @@ def main(argv):
     if argv:
         level_str = argv[0]
     else:
-        level_str = "1"
+        level_str = "0"
     root = Tk()
 
     level = parse_level_from_path("level_{}.lvl".format(level_str))
