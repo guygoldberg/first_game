@@ -1,5 +1,4 @@
 * Find a bug in list / string of colors (only in mirroring?)
-* Calculate pairs automatically
 * Move the edit panel to the right side of the level
 * Save an edited level
 * Cleanup code

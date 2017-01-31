@@ -23,15 +23,15 @@ class State(object):
 
 current_colors = "B"
 piece_code_to_data = {
-        "A": list("rrgg"),
-        "B": list("grrg"),
-        "C": list("ggrr"),
-        "D": list("rggr"),
+        "A": "rrgg",
+        "B": "grrg",
+        "C": "ggrr",
+        "D": "rggr",
 
-        "E": list("rggg"),
-        "F": list("grgg"),
-        "G": list("ggrg"), 
-        "H": list("gggr"), 
+        "E": "rggg",
+        "F": "grgg",
+        "G": "ggrg",
+        "H": "gggr",
         }
 
 # Operation is a tuple (boolean, int)
@@ -45,16 +45,15 @@ operation_code_to_operation_type = {
         }
 
 
-def restart_level(event, canvas, level, pairs_as_text):
+def restart_level(event, canvas, level):
     canvas.delete(ALL)
-    state = draw_board(canvas, level, pairs_as_text)
+    state = draw_board(canvas, level)
     bind_arrows(canvas, state)
 
 
-def bind_restart(canvas, level, pairs_as_text):
+def bind_restart(canvas, level):
     canvas.bind("r", partial(restart_level,
                              level=level,
-                             pairs_as_text=pairs_as_text,
                              canvas=canvas))
 
 
@@ -115,15 +114,13 @@ def piece_data_after_operation(original_data, operation):
     mirror, number_of_rotations = operation
 
     if mirror:
-        new_data = [original_data[3], original_data[2],
-                    original_data[1], original_data[0]]
+        new_data = "".join([original_data[3], original_data[2],
+                    original_data[1], original_data[0]])
     else:
         new_data = original_data[:]
 
     for _ in xrange(number_of_rotations):
-        before_rotation = new_data[:]
-        for i in xrange(4):
-            new_data[i] = before_rotation[(i + 3) % 4]
+        new_data = "".join(new_data[(i + 3) % 4] for i in xrange(4))
 
     return new_data
 
@@ -135,10 +132,10 @@ def operate_piece(canvas, x, y, piece_data, piece_tag, operation):
     return new_tag, new_data
 
 
-def start_game(canvas, level, pairs_as_text):
+def start_game(canvas, level):
     load_assets_to_canvas(canvas)
-    state = draw_board(canvas, level, pairs_as_text)
-    bind_restart(canvas, level, pairs_as_text)
+    state = draw_board(canvas, level)
+    bind_restart(canvas, level)
     bind_arrows(canvas, state)
 
 
@@ -156,29 +153,10 @@ def delete_element(canvas, state, x, y):
         tag = state.pieces.pop((x, y))[0]
         canvas.delete(tag)
 
-        if (x, y) in state.pairs:
-            state.pairs[(x, y)].pop()
-
-        for source, target in state.pairs.iteritems():
-            if (x, y) in target:
-                target.remove((x, y))
 
     if (x, y) in state.operations:
         tag = state.operations.pop((x, y))[0]
         canvas.delete(tag)
-
-
-def init_pairs(state, pairs_as_text):
-    for line in pairs_as_text:
-        # TODO: Change from eval to a better way
-        (x1, y1), (x2, y2) = eval(line)
-        if (x1, y1) not in state.pairs:
-            state.pairs[(x1, y1)] = []
-        state.pairs[(x1, y1)].append((x2, y2))
-
-        if (x2, y2) not in state.pairs:
-            state.pairs[(x2, y2)] = []
-        state.pairs[(x2, y2)].append((x1, y1))
 
 
 def add_piece(canvas, state, x, y, colors):
@@ -191,7 +169,7 @@ def add_operation(canvas, state, x, y, operation_type):
     state.operations[(x, y)] = (operation, operation_type)
 
 
-def draw_board(canvas, level, pairs_as_text):
+def draw_board(canvas, level):
     state = State()
     state.operations = {}
     state.pieces = {}
@@ -199,9 +177,7 @@ def draw_board(canvas, level, pairs_as_text):
     state.width = len(level[0])
     state.height = len(level)
     state.current_operation = None
-    state.pairs = {}
 
-    init_pairs(state, pairs_as_text)
 
     y = 0
     for line in level:
@@ -242,6 +218,22 @@ def is_in_board(state, x, y):
     return True
 
 
+def get_neighbors(state, x, y):
+    neighbors = []
+    for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+        neighbor_x, neighbor_y = x + dx, y + dy
+
+        if not is_in_board(state, neighbor_x, neighbor_y):
+            continue
+
+        if (neighbor_x, neighbor_y) not in state.pieces:
+            continue
+
+        neighbors.append((neighbor_x, neighbor_y))
+
+    return neighbors
+
+
 def move_player(event, canvas, state, dx, dy):
     next_x = state.player_x + dx
     next_y = state.player_y + dy
@@ -255,6 +247,7 @@ def move_player(event, canvas, state, dx, dy):
     if (next_x, next_y) in state.pieces:
         if state.current_operation is None:
             return
+
         else:
             old_tag, piece_data = state.pieces[(next_x, next_y)]
             new_tag, new_data = operate_piece(canvas,
@@ -263,24 +256,21 @@ def move_player(event, canvas, state, dx, dy):
                                               state.current_operation)
             state.pieces[(next_x, next_y)] = (new_tag, new_data)
             state.current_operation = None
-            if (next_x, next_y) in state.pairs:
-                delete_self = False
-                for (other_x, other_y) in state.pairs[(next_x, next_y)]:
-                    other_tag, other_data = state.pieces[(other_x, other_y)]
-                    if other_data == new_data:
-                        delete_self = True
-                        canvas.update_idletasks()
-                        sleep(0.3)
-                        canvas.delete(other_tag)
-                        state.pieces.pop((other_x, other_y))
-                        state.pairs.pop((other_x, other_y))
-
-                if delete_self:
+            delete_self = False
+            for (other_x, other_y) in get_neighbors(state, next_x, next_y):
+                other_tag, other_data = state.pieces[(other_x, other_y)]
+                if other_data == new_data:
+                    delete_self = True
                     canvas.update_idletasks()
                     sleep(0.3)
-                    state.pieces.pop((next_x, next_y))
-                    state.pairs.pop((next_x, next_y))
-                    canvas.delete(new_tag)
+                    canvas.delete(other_tag)
+                    state.pieces.pop((other_x, other_y))
+
+            if delete_self:
+                canvas.update_idletasks()
+                sleep(0.3)
+                state.pieces.pop((next_x, next_y))
+                canvas.delete(new_tag)
             return
 
     move_element_on_canvas(canvas, state.player, dx, dy)
@@ -295,11 +285,8 @@ def move_player(event, canvas, state, dx, dy):
 
 
 def parse_level_from_path(path):
-    full_level = open(path, "rb").read().splitlines()
-    split_index = full_level.index("-")
-    level = full_level[:split_index]
-    pairs_as_text = full_level[split_index+1:]
-    return level, pairs_as_text
+    level = open(path, "rb").read().splitlines()
+    return level
 
 
 def click_edit(event, location_to_colors):
@@ -315,13 +302,13 @@ def main(argv):
         level_str = "1"
     root = Tk()
 
-    level, pairs_as_text = parse_level_from_path("level_{}.lvl".format(level_str))
+    level = parse_level_from_path("level_{}.lvl".format(level_str))
 
     canvas = init_canvas(root, level)
     edit_canvas, location_to_colors = create_edit_canvas(root, level)
     edit_canvas.bind("<Button-1>", partial(click_edit,
                                            location_to_colors=location_to_colors))
-    start_game(canvas, level, pairs_as_text)
+    start_game(canvas, level)
 
     root.mainloop()
 
