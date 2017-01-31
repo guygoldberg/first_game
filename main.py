@@ -32,7 +32,18 @@ piece_code_to_data = {
         "F": "grgg",
         "G": "ggrg",
         "H": "gggr",
+
+        "I": "grrr",
+        "J": "rgrr",
+        "K": "rrgr",
+        "L": "rrrg",
+
+        "M": "rrrr",
+        "N": "gggg",
+        "O": "rgrg",
+        "P": "grgr",
         }
+data_to_piece_code = {value: key for key, value in piece_code_to_data.items()}
 
 # Operation is a tuple (boolean, int)
 # The boolean indicates if there's a mirroring, and the int
@@ -43,6 +54,7 @@ operation_code_to_operation_type = {
         "c": (False, 1),
         "d": (True, 2),
         }
+operation_type_to_operation_code = {value: key for key, value in operation_code_to_operation_type.items()}
 
 
 def restart_level(event, canvas, level):
@@ -137,6 +149,7 @@ def start_game(canvas, level):
     state = draw_board(canvas, level)
     bind_restart(canvas, level)
     bind_arrows(canvas, state)
+    return state
 
 
 def add_block(canvas, state, x, y):
@@ -167,6 +180,32 @@ def add_piece(canvas, state, x, y, colors):
 def add_operation(canvas, state, x, y, operation_type):
     operation = draw_operation(canvas, x, y, operation_type)
     state.operations[(x, y)] = (operation, operation_type)
+
+
+def serialize_level(state):
+    lines = []
+    for y in xrange(state.height):
+        line = []
+        for x in xrange(state.width):
+            if (x, y) in state.blocks:
+                line.append("#")
+
+            elif (x, y) in state.pieces:
+                _, piece_data = state.pieces[(x, y)]
+                line.append(data_to_piece_code[piece_data])
+
+            elif (x, y) in state.operations:
+                _, operation_type = state.operations[(x, y)]
+                line.append(operation_type_to_operation_code[operation_type])
+
+            elif (x, y) == (state.player_x, state.player_y):
+                line.append("p")
+
+            else:
+                line.append(" ")
+
+        lines.append("".join(line))
+    return "\n".join(lines) + "\n"
 
 
 def draw_board(canvas, level):
@@ -295,6 +334,15 @@ def click_edit(event, location_to_colors):
     current_colors = colors
 
 
+def save_level(canvas, state, entry):
+    print "Saving level {}".format(entry.get())
+    serialized_level = serialize_level(state)
+    file_path = entry.get()
+    with open(file_path, "wb") as level_file:
+        level_file.write(serialized_level)
+
+    canvas.focus_set()
+
 def main(argv):
     if argv:
         level_str = argv[0]
@@ -308,7 +356,17 @@ def main(argv):
     edit_canvas, location_to_colors = create_edit_canvas(root, level)
     edit_canvas.bind("<Button-1>", partial(click_edit,
                                            location_to_colors=location_to_colors))
-    start_game(canvas, level)
+    state = start_game(canvas, level)
+    save_entry = Entry(root, text="level_x.lvl")
+    save_button = Button(root, text="save",
+                         command=partial(save_level,
+                                         canvas=canvas,
+                                         state=state,
+                                         entry=save_entry))
+    save_button.pack(side=LEFT, anchor="nw")
+
+    save_entry.pack(side=LEFT, anchor="nw")
+    save_entry.insert(0, "level_x.lvl")
 
     root.mainloop()
 

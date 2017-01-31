@@ -10,7 +10,7 @@ def init_canvas(root, level):
                     bg="white",
                     width=len(level[0]) * SQUARE_SIZE,
                     height=len(level) * SQUARE_SIZE)
-    canvas.pack()
+    canvas.pack(side=LEFT)
     canvas.focus_set()
     return canvas
 
